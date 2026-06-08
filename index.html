@@ -135,8 +135,23 @@
     .pin.peter .pin-pulse { border: 2px solid var(--success); animation: pulse 2.5s infinite; }
     .pin.alex { background: var(--amber); top: 30%; left: 70%; animation: dropIn 0.5s ease 0.1s backwards, float 3s infinite ease-in-out; }
     .pin.hassan { background: var(--red); top: 65%; left: 60%; animation: dropIn 0.5s ease 0.2s backwards; color: #fff; }
+    .pin.chloe { background: #ff6b81; top: 30%; left: 20%; animation: dropIn 0.5s ease 0.4s backwards; color: #fff; }
+    .pin.chloe .pin-pulse { border: 2px solid #ff6b81; animation: pulse 2.5s infinite; }
     .pin.mom { background: #9b59b6; top: 85%; left: 20%; animation: dropIn 0.5s ease 0.3s backwards; color: #fff; }
     .pin.mom .pin-pulse { border: 2px solid #9b59b6; animation: pulse 2.5s infinite; }
+    .pin.james { background: #3498db; top: 15%; left: 85%; animation: dropIn 0.5s ease 0.5s backwards; color: #fff; border-color: var(--teal); }
+    .pin.james::after { content:''; position:absolute; bottom:-12px; font-size:10px; color:var(--teal); font-weight:bold; }
+    
+    .map-controls {
+      position: absolute; right: 20px; top: 90px; display: flex; flex-direction: column; gap: 8px; z-index: 10;
+    }
+    .map-controls .btn-icon { background: var(--bg-card); width: 36px; height: 36px; border: 1px solid rgba(0,212,170,0.2); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; cursor: pointer; color: white; border-radius: 8px; font-size: 18px; }
+
+    .street { position: absolute; background: rgba(0,212,170,0.05); z-index: 0; }
+    .street.vertical { width: 40px; height: 100%; top: 0; border-left: 1px dashed rgba(0,212,170,0.1); border-right: 1px dashed rgba(0,212,170,0.1); }
+    .street.horizontal { width: 100%; height: 40px; left: 0; border-top: 1px dashed rgba(0,212,170,0.1); border-bottom: 1px dashed rgba(0,212,170,0.1); }
+    .map-feature { position: absolute; font-size: 24px; pointer-events: none; z-index: 2; display: flex; align-items: center; gap: 4px;}
+    .map-feature.store, .map-feature.cafe { font-size: 11px; font-weight: bold; background: rgba(13,26,46,0.9); padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(0,212,170,0.2); color: var(--muted); backdrop-filter: blur(4px); }
 
     .route-line { position: absolute; top: 50%; left: 40%; width: 30%; height: 2px; border-bottom: 3px dotted var(--teal); transform-origin: left; transform: rotate(-30deg); display: none; z-index: 15; opacity: 0.8; }
 
@@ -265,23 +280,44 @@
             <div class="block" style="top:35%; left:10%; width: 50px; height: 90px;"></div>
           </div>
           
+          <div class="street vertical" style="left: 40%;"></div>
+          <div class="street horizontal" style="top: 30%;"></div>
+          <div class="street horizontal" style="top: 65%;"></div>
+          
+          <div class="map-feature tree" style="top: 62%; left: 62%; font-size: 32px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));">🌳</div>
+          <div class="map-feature store" style="top: 83%; left: 16%;">🛒 Fresh Market</div>
+          <div class="map-feature cafe" style="top: 25%; left: 18%;">☕ Cafe</div>
+          <div class="map-feature cafe" style="top: 27%; left: 68%;">📚 Library</div>
+          <div class="map-feature" style="top: 45%; left: 36%; font-size: 24px;">🏡</div>
+
           <!-- Route line connecting center to a pin -->
-          <div class="route-line" id="routeLine"></div>
+          <div class="route-line" id="routeLine" style="transform-origin: left center;"></div>
 
           <!-- Live Pins -->
           <div class="pin peter" onclick="showPopup('Peter', '#00d4aa', 'Home', 'Now', 'peter')">
             P<div class="pin-pulse"></div>
           </div>
-          <div class="pin alex" onclick="showPopup('Alex', '#f5a623', 'In Transit', '15 min ago', 'alex')">
+          <div class="pin chloe" onclick="showPopup('Girlfriend ❤️', '#ff6b81', 'Cafe', '5 min ago', 'chloe')">
+            GF<div class="pin-pulse" style="border-color: #ff6b81;"></div>
+          </div>
+          <div class="pin alex" onclick="showPopup('Alex', '#f5a623', 'Library, Floor 2', '15 min ago', 'alex')">
             A
           </div>
           <div class="pin hassan" onclick="showPopup('Hassan', '#e05252', 'Last seen 2h ago', '2h ago', 'hassan')">
             H
           </div>
-          <div class="pin mom" onclick="showPopup('Mom', '#9b59b6', 'Grocery Store', 'Now', 'mom')">
+          <div class="pin mom" onclick="showPopup('Mom', '#9b59b6', 'Fresh Market', 'Now', 'mom')">
             Mo<div class="pin-pulse" style="border-color: #9b59b6;"></div>
           </div>
+          <div class="pin james">
+            JY
+          </div>
         </div>
+      </div>
+      
+      <div class="map-controls">
+        <div class="btn-icon" onclick="zoomMap(0.2)">+</div>
+        <div class="btn-icon" onclick="zoomMap(-0.2)">—</div>
       </div>
     </div>
     
@@ -351,7 +387,7 @@
       <div class="profile-header">
         <div class="profile-avatar">JY</div>
         <div class="profile-name bebas">James Yang</div>
-        <div class="profile-sub">Grade 12 · Mississauga, ON</div>
+        <div class="profile-sub">Grade 12 · Oakville, Ontario</div>
       </div>
       
       <div class="section-title">My Status</div>
@@ -413,11 +449,12 @@
 <script>
   // Hardcoded Data
   const contacts = [
+    { id: 'chloe', name: "Girlfriend ❤️", initials: "GF", color: "#ff6b81", status: "Active Now", dot: "status-active", location: "Cafe", time: "5 min ago", desc: "Girlfriend" },
     { id: 'peter', name: "Peter", initials: "P", color: "var(--success)", status: "Active Now", dot: "status-active", location: "Home", time: "Now", desc: "Family" },
     { id: 'alex', name: "Alex", initials: "A", color: "var(--amber)", status: "Away", dot: "status-away", location: "Library, Floor 2", time: "15 min ago", desc: "Best friend" },
     { id: 'hassan', name: "Hassan", initials: "H", color: "var(--red)", status: "Offline", dot: "status-offline", location: "Last: Pomegranate Tree", time: "2h ago", desc: "Roommate" },
-    { id: 'mom', name: "Mom", initials: "Mo", color: "#9b59b6", status: "Active Now", dot: "status-active", location: "Grocery Store", time: "Now", desc: "Family" },
-    { id: 'james', name: "James", initials: "JY", color: "#3498db", status: "Away", dot: "status-away", location: "School", time: "34 min ago", desc: "Me" }
+    { id: 'mom', name: "Mom", initials: "Mo", color: "#9b59b6", status: "Active Now", dot: "status-active", location: "Fresh Market", time: "Now", desc: "Family" },
+    { id: 'james', name: "James", initials: "JY", color: "#3498db", status: "Away", dot: "status-away", location: "Oakville, Ontario", time: "34 min ago", desc: "Me" }
   ];
 
   const tags = [
@@ -526,8 +563,10 @@
 
   // Map Interactions
   let currentTarget = '';
+  let currentTargetId = '';
   function showPopup(name, color, loc, time, id) {
     currentTarget = name;
+    currentTargetId = id;
     document.getElementById('popName').innerText = name;
     document.getElementById('popDot').style.background = color;
     document.getElementById('popLoc').innerText = "📍 Last location: " + loc;
@@ -548,7 +587,37 @@
   }
 
   function startNavigate() {
-    document.getElementById('routeLine').style.display = 'block';
+    const routeLine = document.getElementById('routeLine');
+    const jamesPin = document.querySelector('.pin.james');
+    const targetPin = document.querySelector('.pin.' + currentTargetId);
+    
+    if (jamesPin && targetPin) {
+      const x1 = jamesPin.offsetLeft;
+      const y1 = jamesPin.offsetTop;
+      const x2 = targetPin.offsetLeft;
+      const y2 = targetPin.offsetTop;
+      
+      const width = Math.hypot(x2 - x1, y2 - y1);
+      const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+      
+      routeLine.style.width = width + 'px';
+      routeLine.style.left = x1 + 'px';
+      routeLine.style.top = y1 + 'px';
+      routeLine.style.transform = `rotate(${angle}deg)`;
+      routeLine.style.display = 'block';
+
+      showToast(`Navigating to ${currentTarget}...`);
+
+      const scrollArea = document.getElementById('mapScrollArea');
+      scrollArea.scrollTo({
+        left: (x1 + x2) / 2 - scrollArea.clientWidth / 2,
+        top: (y1 + y2) / 2 - scrollArea.clientHeight / 2,
+        behavior: 'smooth'
+      });
+    } else {
+      routeLine.style.display = 'block';
+      showToast(`Navigating to ${currentTarget}...`);
+    }
   }
 
   function zoomTo(id) {
@@ -578,6 +647,17 @@
   }
 
   // Scroll Area Drag Logic and initialization
+  let currentZoom = 1;
+  function zoomMap(delta) {
+    const content = document.getElementById('mapContent');
+    if (!content) return;
+    currentZoom += delta;
+    if(currentZoom < 0.4) currentZoom = 0.4;
+    if(currentZoom > 2) currentZoom = 2;
+    content.style.transform = `scale(${currentZoom})`;
+    content.style.transformOrigin = 'center center';
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     const scrollArea = document.getElementById('mapScrollArea');
     if(scrollArea) {
