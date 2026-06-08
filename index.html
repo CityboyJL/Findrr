@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Findrr - GPS Navigation & Location Tracking</title>
+  <!-- Force rebuild to retry deployment -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* CSS Variables */
+    :root {
+      --bg-deep: #080f1a;
+      --bg-mid: #0d1a2e;
+      --bg-card: rgba(13,26,46,0.9);
+      --teal: #00d4aa;
+      --teal-glow: rgba(0,212,170,0.25);
+      --amber: #f5a623;
+      --white: #f0f4fa;
+      --muted: #8899b0;
+      --red: #e05252;
+      --success: #00d4aa;
+      --font-display: 'Impact', 'Arial Black', sans-serif;
+      --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #03080f;
+      font-family: var(--font-body);
+      color: var(--white);
+    }
+    h1, h2, h3, .bebas, .title { font-family: var(--font-display); letter-spacing: 1px; font-weight: normal; }
+    
+    .phone-frame {
+      width: 340px;
+      height: 700px;
+      border-radius: 40px;
+      border: 8px solid #1a1a1a;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.8), 0 0 0 2px rgba(255,255,255,0.05);
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-deep);
+      display: flex;
+      flex-direction: column;
+    }
+    .notch {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 25px;
+      background: #1a1a1a;
+      border-bottom-left-radius: 15px;
+      border-bottom-right-radius: 15px;
+      z-index: 100;
+    }
+    .screen {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg-deep);
+      opacity: 0; pointer-events: none;
+      transition: all 0.3s ease;
+      transform: translateX(20px);
+      display: flex; flex-direction: column;
+    }
+    .screen.active {
+      opacity: 1; pointer-events: auto;
+      transform: translateX(0);
+    }
+    .nav-bar {
+      position: absolute;
+      bottom: 0; left: 0; width: 100%; height: 65px;
+      background: var(--bg-mid);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      display: flex; justify-content: space-around; align-items: center;
+      padding-bottom: 10px; z-index: 50;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      opacity: 0.5; color: var(--white); cursor: pointer; font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
+      transition: all 0.3s;
+    }
+    .nav-item.active { opacity: 1; color: var(--teal); }
+    .nav-item svg { width: 20px; height: 20px; fill: currentColor; margin-bottom: 4px; transition: fill 0.3s; }
+    
+    /* UI Elements */
+    .btn { background: var(--teal); color: #000; font-weight: 700; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: transform 0.1s; }
+    .btn:active { transform: scale(0.96); }
+    .btn-outline { background: transparent; color: var(--teal); border: 1px solid var(--teal); }
+    
+    /* Toast */
+    .toast { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--bg-card); border: 1px solid var(--teal); padding: 12px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; opacity: 0; pointer-events: none; transition: all 0.3s ease; z-index: 200; backdrop-filter: blur(12px); display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); text-align: center; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+    /* Screen 1: Map */
+    .map-container {
+      flex: 1; position: relative; background: #050a12; overflow: hidden; height: 65%;
+    }
+    .map-scroll-area {
+      width: 100%; height: 100%; overflow: auto; scrollbar-width: none; scroll-behavior: smooth; cursor: grab;
+    }
+    .map-scroll-area:active { cursor: grabbing; }
+    .map-scroll-area::-webkit-scrollbar { display: none; }
+    
+    .map-content { width: 800px; height: 800px; position: relative; }
+    
+    .map-content::before {
+      content: '';
+      position: absolute; width: 200%; height: 200%; top: -50%; left: -50%;
+      background-image: 
+        linear-gradient(rgba(0,212,170,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,170,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+      transform: rotate(-15deg);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .map-blocks { position: absolute; width: 100%; height: 100%; transform: rotate(-15deg) scale(1.5); z-index: 1; }
+    .block { position: absolute; background: #0d1a2e; border: 1px solid rgba(255,255,255,0.03); border-radius: 2px; }
+    
+    .search-bar { position: absolute; top: 35px; left: 20px; right: 20px; background: var(--bg-card); backdrop-filter: blur(12px); padding: 10px 15px; border-radius: 12px; border: 1px solid rgba(0,212,170,0.15); display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    
+    .pin { position: absolute; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000; font-size: 12px; transform: translate(-50%, -50%); z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.5); border: 2px solid white; cursor: pointer; }
+    .pin-pulse { position: absolute; width: 100%; height: 100%; border-radius: 50%; opacity: 0; box-sizing: border-box; }
+    @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
+    @keyframes float { 0% { transform: translate(-50%, -50%) translateY(0px); } 50% { transform: translate(-50%, -50%) translateY(-5px); } 100% { transform: translate(-50%, -50%) translateY(0px); } }
+    @keyframes dropIn { from { transform: translate(-50%, -80px); opacity: 0; } to { transform: translate(-50%, -50%); opacity: 1; } }
+    
+    .pin.peter { background: var(--success); top: 50%; left: 40%; animation: dropIn 0.5s ease backwards; }
+    .pin.peter .pin-pulse { border: 2px solid var(--success); animation: pulse 2.5s infinite; }
+    .pin.alex { background: var(--amber); top: 30%; left: 70%; animation: dropIn 0.5s ease 0.1s backwards, float 3s infinite ease-in-out; }
+    .pin.hassan { background: var(--red); top: 65%; left: 60%; animation: dropIn 0.5s ease 0.2s backwards; color: #fff; }
+    .pin.mom { background: #9b59b6; top: 85%; left: 20%; animation: dropIn 0.5s ease 0.3s backwards; color: #fff; }
+    .pin.mom .pin-pulse { border: 2px solid #9b59b6; animation: pulse 2.5s infinite; }
+
+    .route-line { position: absolute; top: 50%; left: 40%; width: 30%; height: 2px; border-bottom: 3px dotted var(--teal); transform-origin: left; transform: rotate(-30deg); display: none; z-index: 15; opacity: 0.8; }
+
+    .bottom-sheet { position: absolute; bottom: 65px; left: 0; width: 100%; background: linear-gradient(transparent, var(--bg-deep)); border-top-left-radius: 24px; border-top-right-radius: 24px; border-top: 1px solid rgba(255,255,255,0.05); padding: 20px; z-index: 10; display: flex; flex-direction: column; gap: 16px; transition: transform 0.3s ease; }
+    .stories-row { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 8px; scrollbar-width: none; }
+    .stories-row::-webkit-scrollbar { display: none; }
+    .story-card { padding: 10px; min-width: 70px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; transition: transform 0.1s; }
+    .story-card:active { transform: scale(0.95); }
+    .story-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; position: relative; border: 2px solid var(--bg-mid);}
+    .story-status { position: absolute; bottom: 0px; right: 0px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg-deep); }
+    @keyframes gentlePulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
+    .status-active .story-status { background: var(--success); animation: gentlePulse 2s infinite; }
+    .status-active .story-avatar { border-color: var(--success); }
+    .status-away .story-status { background: var(--amber); }
+    .status-offline .story-status { background: var(--red); }
+    .story-name { font-size: 11px; color: var(--white); font-weight: 500; }
+    .story-time { font-size: 10px; color: var(--teal); opacity: 0.8; text-align: center; }
+
+    .popup-card { display: none; background: var(--bg-mid); border: 1px solid var(--teal); padding: 16px; border-radius: 16px; flex-direction: column; gap: 12px; margin-top: 8px; animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .popup-header { display: flex; justify-content: space-between; align-items: center; }
+    .popup-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .popup-loc { font-size: 12px; color: var(--muted); }
+    .popup-actions { display: flex; gap: 8px; }
+    .popup-actions .btn { flex: 1; font-size: 12px; text-align: center; }
+
+    /* Screen 2: Circle */
+    .screen-content { padding: 60px 20px 100px; height: 100%; overflow-y: auto; scrollbar-width: none; }
+    .screen-content::-webkit-scrollbar { display: none; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .title { font-size: 32px; color: var(--white); }
+    .toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+    .switch { width: 36px; height: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; position: relative; cursor: pointer; transition: 0.3s; }
+    .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: var(--muted); border-radius: 50%; transition: 0.3s; }
+    .switch.on { background: var(--teal); }
+    .switch.on::after { left: 18px; background: #fff; }
+    .group-map-card { height: 0; overflow: hidden; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); border-radius: 16px; margin-bottom: 0; position: relative; opacity: 0; border: 1px solid transparent; }
+    .group-map-card.show { height: 120px; border: 1px solid rgba(0,212,170,0.3); margin-bottom: 16px; opacity: 1; }
+
+    .list-item { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.05); padding: 16px; border-radius: 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 12px; backdrop-filter: blur(12px); }
+    .list-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: 16px; }
+    .list-info { flex: 1; overflow: hidden; }
+    .list-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; white-space: nowrap; }
+    .list-name { font-weight: 700; font-size: 15px; }
+    .status-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; padding: 3px 6px; border-radius: 8px; text-transform: uppercase; font-weight: 700; }
+    .chip-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .list-desc { font-size: 11px; color: var(--muted); margin-top: 6px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+    .list-actions { display: flex; justify-content: flex-end; gap: 6px; }
+    .btn-icon { background: rgba(255,255,255,0.05); border: none; width: 32px; height: 32px; border-radius: 50%; color: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; font-size: 14px; }
+    .btn-icon:active { transform: scale(0.9); }
+    
+    .add-btn { width: 100%; border: 1px dashed rgba(0,212,170,0.3); background: rgba(0,212,170,0.05); color: var(--teal); padding: 16px; border-radius: 16px; font-weight: 700; margin-top: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s;}
+    .add-btn:active { transform: scale(0.98); }
+
+    /* Screen 3: Taggrr */
+    .tag-card { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.05); padding: 16px; border-radius: 16px; margin-bottom: 12px; position: relative; overflow: hidden; }
+    .tag-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .tag-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+    .tag-icon { font-size: 20px; }
+    .tag-status { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 8px; }
+    .tag-body { display: flex; justify-content: space-between; align-items: flex-end; }
+    .tag-info { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+    
+    .progress-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 16px; position: relative; }
+    .progress-fill { height: 100%; background: var(--amber); border-radius: 2px; width: 66%; transition: width 1s ease; }
+    .progress-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--muted); margin-top: 6px; font-weight: 500; }
+    
+    .sound-wave { display: none; align-items: center; gap: 4px; margin-top: 16px; background: rgba(0,212,170,0.1); padding: 12px; border-radius: 12px; justify-content: center; animation: slideUp 0.3s ease;}
+    .bar { width: 4px; height: 12px; background: var(--teal); border-radius: 2px; animation: bounce 0.5s infinite alternate; }
+    .bar:nth-child(2) { animation-delay: 0.1s; }
+    .bar:nth-child(3) { animation-delay: 0.2s; }
+    .bar:nth-child(4) { animation-delay: 0.3s; }
+    @keyframes bounce { to { height: 24px; } }
+
+    /* Screen 4: Profile */
+    .profile-header { display: flex; flex-direction: column; align-items: center; margin-bottom: 32px; }
+    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--teal); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; background: rgba(0,212,170,0.1); margin-bottom: 12px; color: var(--teal); }
+    .profile-name { font-size: 26px; }
+    .profile-sub { font-size: 13px; color: var(--muted); }
+    
+    .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 12px; font-weight: 700; }
+    .radio-group { display: flex; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 12px; margin-bottom: 28px; }
+    .radio-btn { flex: 1; text-align: center; padding: 10px; font-size: 12px; border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 700; transition: 0.2s; }
+    .radio-btn.active { background: var(--bg-card); color: var(--white); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    
+    .safe-zone-card { height: 120px; background: #0a1324; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 28px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .safe-zone-circle { width: 80px; height: 80px; border: 2px dashed var(--success); border-radius: 50%; background: rgba(0,212,170,0.1); display: flex; align-items: center; justify-content: center; flex-direction: column; animation: gentlePulse 3s infinite;}
+    .safe-zone-dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; }
+    .safe-zone-label { position: absolute; bottom: 12px; left: 16px; font-size: 10px; font-weight: 700; color: var(--success); }
+
+    .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .setting-desc { font-size: 11px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
+
+    .log-list { display: flex; flex-direction: column; gap: 16px; padding-bottom: 20px;}
+    .log-item { font-size: 12px; color: var(--white); display: flex; gap: 12px; align-items: flex-start; }
+    .log-icon { font-size: 16px; }
+    
+  </style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <div class="notch"></div>
+  
+  <!-- SCREEN 1: MAP -->
+  <div id="screen-map" class="screen active">
+    <div class="map-container">
+      <div class="search-bar">
+        <svg fill="currentColor" viewBox="0 0 24 24" width="16" height="16"><path d="M10 2a8 8 0 015.293 13.707l5 5a1 1 0 01-1.414 1.414l-5-5A8 8 0 1110 2zm0 2a6 6 0 100 12A6 6 0 0010 4z"/></svg>
+        Search for a person, place, or thing...
+      </div>
+      
+      <div class="map-scroll-area" id="mapScrollArea">
+        <div class="map-content" id="mapContent">
+          <div class="map-blocks">
+            <!-- Decorative City Blocks -->
+            <div class="block" style="top:15%; left:5%; width: 70px; height: 90px;"></div>
+            <div class="block" style="top:55%; left:15%; width: 50px; height: 50px;"></div>
+            <div class="block" style="top:8%; left:65%; width: 110px; height: 75px;"></div>
+            <div class="block" style="top:70%; left:45%; width: 90px; height: 60px;"></div>
+            <div class="block" style="top:40%; left:80%; width: 60px; height: 40px;"></div>
+            <div class="block" style="top:25%; left:35%; width: 80px; height: 30px;"></div>
+            <div class="block" style="top:80%; left:15%; width: 100px; height: 80px;"></div>
+            <div class="block" style="top:85%; left:60%; width: 90px; height: 60px;"></div>
+            <div class="block" style="top:5%; left:25%; width: 60px; height: 60px;"></div>
+            <div class="block" style="top:35%; left:10%; width: 50px; height: 90px;"></div>
+          </div>
+          
+          <!-- Route line connecting center to a pin -->
+          <div class="route-line" id="routeLine"></div>
+
+          <!-- Live Pins -->
+          <div class="pin peter" onclick="showPopup('Peter', '#00d4aa', 'Home', 'Now', 'peter')">
+            P<div class="pin-pulse"></div>
+          </div>
+          <div class="pin alex" onclick="showPopup('Alex', '#f5a623', 'In Transit', '15 min ago', 'alex')">
+            A
+          </div>
+          <div class="pin hassan" onclick="showPopup('Hassan', '#e05252', 'Last seen 2h ago', '2h ago', 'hassan')">
+            H
+          </div>
+          <div class="pin mom" onclick="showPopup('Mom', '#9b59b6', 'Grocery Store', 'Now', 'mom')">
+            Mo<div class="pin-pulse" style="border-color: #9b59b6;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bottom-sheet">
+      <div class="stories-row">
+        <!-- Rendered via JS -->
+      </div>
+      
+      <!-- Details Popup Card -->
+      <div class="popup-card" id="mapPopup">
+        <div class="popup-header">
+          <div class="popup-title">
+            <span id="popName">Peter</span> 
+            <span id="popDot" style="width:8px;height:8px;border-radius:50%;background:#00d4aa;display:inline-block;"></span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);font-weight:700;" id="popTime">Now</div>
+        </div>
+        <div class="popup-loc" id="popLoc">📍 Last location: Home</div>
+        <div class="popup-actions">
+          <button class="btn btn-outline" onclick="pingContact()">Ping</button>
+          <button class="btn" onclick="startNavigate()">Navigate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: CIRCLE -->
+  <div id="screen-circle" class="screen">
+    <div class="screen-content">
+      <div class="header-row">
+        <h1 class="title">TRUSTED CIRCLE</h1>
+        <div class="toggle">
+          Group Map
+          <div class="switch" id="groupMapTgl" onclick="toggleMap()"></div>
+        </div>
+      </div>
+      
+      <div class="group-map-card" id="groupMapCard">
+         <div class="map-container" style="height:100%; border-radius:15px;">
+            <div class="pin" style="background:var(--success); top:30%; left:20%; transform:scale(0.7);">P</div>
+            <div class="pin" style="background:var(--amber); top:60%; left:50%; transform:scale(0.7);">A</div>
+            <div class="pin" style="background:var(--red); top:40%; left:80%; transform:scale(0.7); color:#fff">H</div>
+         </div>
+      </div>
+
+      <div id="circle-list">
+        <!-- Rendered via JS -->
+      </div>
+      <button class="add-btn" onclick="showToast('Add contact modal opened')">+ Add to Circle</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: TAGGRR -->
+  <div id="screen-taggrr" class="screen">
+    <div class="screen-content">
+      <h1 class="title" style="margin-bottom:24px;">MY TAGGRRS</h1>
+      <div id="tag-list">
+        <!-- Rendered via JS -->
+      </div>
+      <button class="add-btn" onclick="showToast('Searching for new Taggrr device...')">+ Add New Taggrr</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: PROFILE -->
+  <div id="screen-profile" class="screen">
+    <div class="screen-content">
+      <div class="profile-header">
+        <div class="profile-avatar">JY</div>
+        <div class="profile-name bebas">James Yang</div>
+        <div class="profile-sub">Grade 12 · Mississauga, ON</div>
+      </div>
+      
+      <div class="section-title">My Status</div>
+      <div class="radio-group">
+        <div class="radio-btn active">Active</div>
+        <div class="radio-btn">Away</div>
+        <div class="radio-btn">DND</div>
+      </div>
+
+      <div class="section-title">Safe Zone</div>
+      <div class="safe-zone-card">
+        <div class="safe-zone-circle">
+           <div class="safe-zone-dot"></div>
+        </div>
+        <div class="safe-zone-label">Home Zone — Active</div>
+      </div>
+
+      <div class="setting-row">
+        <div class="section-title" style="margin:0;">Lone Alert</div>
+        <div class="switch on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-desc">If you don't check in for 4 hours, your Trusted Circle will be notified automatically.</div>
+
+      <div class="section-title">Notification Log</div>
+      <div class="log-list">
+        <div class="log-item"><span class="log-icon">✅</span> <div><span style="font-weight:700;">Peter</span> arrived home <br><span style="color:var(--muted);font-size:10px;">6:32 PM</span></div></div>
+        <div class="log-item"><span class="log-icon">⚠️</span> <div><span style="font-weight:700;">Hassan</span> left Safe Zone <br><span style="color:var(--muted);font-size:10px;">2:14 PM</span></div></div>
+        <div class="log-item"><span class="log-icon">💬</span> <div><span style="font-weight:700;">Alex</span> sent a check-in ping <br><span style="color:var(--muted);font-size:10px;">11:05 AM</span></div></div>
+        <div class="log-item"><span class="log-icon">🎁</span> <div><span style="font-weight:700;">Gift Package</span> is out for delivery <br><span style="color:var(--muted);font-size:10px;">Yesterday</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <div class="nav-bar">
+    <div class="nav-item active" onclick="switchTab('screen-map', this)">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      Map
+    </div>
+    <div class="nav-item" onclick="switchTab('screen-circle', this)">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      Circle
+    </div>
+    <div class="nav-item" onclick="switchTab('screen-taggrr', this)">
+      <svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.41l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.36-.36.59-.86.59-1.41s-.23-1.06-.59-1.41zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg>
+      Taggrr
+    </div>
+    <div class="nav-item" onclick="switchTab('screen-profile', this)">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      Profile
+    </div>
+  </div>
+
+  <div id="root" style="display: none;"></div>
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toast">Message</div>
+</div>
+
+<script>
+  // Hardcoded Data
+  const contacts = [
+    { id: 'peter', name: "Peter", initials: "P", color: "var(--success)", status: "Active Now", dot: "status-active", location: "Home", time: "Now", desc: "Family" },
+    { id: 'alex', name: "Alex", initials: "A", color: "var(--amber)", status: "Away", dot: "status-away", location: "Library, Floor 2", time: "15 min ago", desc: "Best friend" },
+    { id: 'hassan', name: "Hassan", initials: "H", color: "var(--red)", status: "Offline", dot: "status-offline", location: "Last: Pomegranate Tree", time: "2h ago", desc: "Roommate" },
+    { id: 'mom', name: "Mom", initials: "Mo", color: "#9b59b6", status: "Active Now", dot: "status-active", location: "Grocery Store", time: "Now", desc: "Family" },
+    { id: 'james', name: "James", initials: "JY", color: "#3498db", status: "Away", dot: "status-away", location: "School", time: "34 min ago", desc: "Me" }
+  ];
+
+  const tags = [
+    { name: "Backpack", icon: "🎒", location: "School, Room 214", time: "10 min ago", status: "NEARBY", color: "var(--success)" },
+    { name: "Letters from GF", icon: "💌", location: "Home — Desk drawer", time: "3h ago", status: "AT HOME", color: "var(--success)" },
+    { name: "Gift Package", icon: "🎁", location: "In transit — Delivery tmrw", time: "Active", status: "EN ROUTE", color: "var(--amber)", progress: true },
+    { name: "Travel Bag", icon: "💼", location: "Unknown — Signal lost", time: "2 days ago", status: "LOST", color: "var(--red)" }
+  ];
+
+  // Render Horizontal Stories on Map Screen
+  const storiesRow = document.querySelector('.stories-row');
+  contacts.forEach(c => {
+    const textColor = (c.color === 'var(--success)' || c.color === 'var(--amber)') ? '#000' : '#fff';
+    storiesRow.innerHTML += `
+      <div class="story-card ${c.dot}" onclick="zoomTo('${c.id}')">
+        <div class="story-avatar" style="background:${c.color}; color:${textColor}">${c.initials}<div class="story-status"></div></div>
+        <div class="story-name">${c.name}</div>
+        <div class="story-time">${c.time}</div>
+      </div>
+    `;
+  });
+
+  // Render Trusted Circle List
+  const circleList = document.getElementById('circle-list');
+  contacts.forEach(c => {
+    const textColor = (c.color === 'var(--success)' || c.color === 'var(--amber)') ? '#000' : '#fff';
+    circleList.innerHTML += `
+      <div class="list-item">
+        <div class="list-avatar" style="background:${c.color}; color:${textColor}">${c.initials}</div>
+        <div class="list-info">
+          <div class="list-name-row">
+            <span class="list-name">${c.name}</span>
+            <span style="font-size:11px;color:var(--muted)">· ${c.desc}</span>
+          </div>
+          <div class="status-chip" style="color:${c.color}; background:color-mix(in srgb, ${c.color} 15%, transparent)"><div class="chip-dot" style="background:${c.color}"></div> ${c.status}</div>
+          <div class="list-desc">📍 ${c.location}</div>
+        </div>
+        <div class="list-actions">
+          <button class="btn-icon" onclick="switchTab('screen-map', document.querySelectorAll('.nav-item')[0]); zoomTo('${c.id}')">📍</button>
+          <button class="btn-icon" onclick="showToast('💬 Ping sent to ${c.name}!')">💬</button>
+        </div>
+      </div>
+    `;
+  });
+
+  // Render Taggrr List
+  const tagList = document.getElementById('tag-list');
+  tags.forEach((t) => {
+    let progressHtml = '';
+    let findAction = 'triggerFind(this)';
+    
+    if (t.progress) {
+      progressHtml = `
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+        <div class="progress-labels">
+          <span>Shipped</span><span>Transit</span><span style="color:#fff;font-weight:700">Delivery</span><span>Done</span>
+        </div>
+      `;
+      findAction = "showToast('Tracking details opened')";
+    } else if (t.status === 'LOST') {
+      findAction = "showToast('⚠️ Signal lost. Last known location shown on map.'); setTimeout(()=>switchTab('screen-map', document.querySelectorAll('.nav-item')[0]), 1800)";
+    }
+
+    tagList.innerHTML += `
+      <div class="tag-card">
+        <div class="tag-header">
+          <div class="tag-title"><span class="tag-icon">${t.icon}</span> ${t.name}</div>
+          <div class="tag-status" style="background:color-mix(in srgb, ${t.color} 15%, transparent); color:${t.color}">${t.status}</div>
+        </div>
+        <div class="tag-body">
+          <div class="tag-info">
+            <span>📍 ${t.location}</span>
+            <span>Last seen: ${t.time}</span>
+          </div>
+          <button class="btn" style="padding:8px 16px;font-size:12px;background:rgba(255,255,255,0.1);color:#fff" onclick="${findAction}">Find</button>
+        </div>
+        ${progressHtml}
+        <div class="sound-wave">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <span style="font-size:11px;font-weight:700;color:var(--teal)">🔊 Taggrr is beeping nearby!</span>
+        </div>
+      </div>
+    `;
+  });
+
+  // Navigation Logic
+  function switchTab(screenId, navEl) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    navEl.classList.add('active');
+  }
+
+  // Toast Function
+  let toastTimeout;
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.innerText = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // Map Interactions
+  let currentTarget = '';
+  function showPopup(name, color, loc, time, id) {
+    currentTarget = name;
+    document.getElementById('popName').innerText = name;
+    document.getElementById('popDot').style.background = color;
+    document.getElementById('popLoc').innerText = "📍 Last location: " + loc;
+    document.getElementById('popTime').innerText = time;
+    document.getElementById('mapPopup').style.display = 'flex';
+    document.getElementById('routeLine').style.display = 'none';
+
+    // Highlight map pin briefly
+    const pin = document.querySelector('.pin.' + id);
+    if(pin) {
+      pin.style.transform = 'translate(-50%, -50%) scale(1.2)';
+      setTimeout(()=> pin.style.transform = 'translate(-50%, -50%) scale(1)', 300);
+    }
+  }
+
+  function pingContact() {
+    showToast(`✓ Check-in sent to ${currentTarget}`);
+  }
+
+  function startNavigate() {
+    document.getElementById('routeLine').style.display = 'block';
+  }
+
+  function zoomTo(id) {
+    const p = contacts.find(c => c.id === id);
+    const pin = document.querySelector('.pin.' + id);
+    
+    if (pin) {
+      const scrollArea = document.getElementById('mapScrollArea');
+      // Calculate pin position relative to the scroll area
+      const pinLeft = pin.offsetLeft;
+      const pinTop = pin.offsetTop;
+      
+      // Target scroll to center the pin in the visible area
+      const targetScrollLeft = pinLeft - (scrollArea.clientWidth / 2);
+      const targetScrollTop = pinTop - (scrollArea.clientHeight / 2);
+      
+      scrollArea.scrollTo({
+        left: targetScrollLeft,
+        top: targetScrollTop,
+        behavior: 'smooth'
+      });
+      
+      showPopup(p.name, p.color, p.location, p.time, p.id);
+    } else if (p) {
+      showToast(`Map location for ${p.name} updated.`);
+    }
+  }
+
+  // Scroll Area Drag Logic and initialization
+  document.addEventListener("DOMContentLoaded", () => {
+    const scrollArea = document.getElementById('mapScrollArea');
+    if(scrollArea) {
+      // Center map initially (wait a tick for layout)
+      setTimeout(() => {
+        scrollArea.scrollLeft = (800 - scrollArea.clientWidth) / 2;
+        scrollArea.scrollTop = (800 - scrollArea.clientHeight) / 2;
+      }, 0);
+
+      let isDown = false;
+      let startX;
+      let startY;
+      let scrollLeft;
+      let scrollTop;
+
+      scrollArea.addEventListener('mousedown', (e) => {
+        isDown = true;
+        scrollArea.style.cursor = 'grabbing';
+        startX = e.pageX - scrollArea.offsetLeft;
+        startY = e.pageY - scrollArea.offsetTop;
+        scrollLeft = scrollArea.scrollLeft;
+        scrollTop = scrollArea.scrollTop;
+      });
+      scrollArea.addEventListener('mouseleave', () => {
+        isDown = false;
+        scrollArea.style.cursor = 'grab';
+      });
+      scrollArea.addEventListener('mouseup', () => {
+        isDown = false;
+        scrollArea.style.cursor = 'grab';
+      });
+      scrollArea.addEventListener('mousemove', (e) => {
+        if(!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - scrollArea.offsetLeft;
+        const y = e.pageY - scrollArea.offsetTop;
+        const walkX = (x - startX) * 1.5;
+        const walkY = (y - startY) * 1.5;
+        scrollArea.scrollLeft = scrollLeft - walkX;
+        scrollArea.scrollTop = scrollTop - walkY;
+      });
+    }
+  });
+
+  // Group Map Toggle
+  function toggleMap() {
+    const s = document.getElementById('groupMapTgl');
+    const c = document.getElementById('groupMapCard');
+    s.classList.toggle('on');
+    if(s.classList.contains('on')) c.classList.add('show');
+    else c.classList.remove('show');
+  }
+
+  // Taggrr Find Audio Animation
+  function triggerFind(btn) {
+    const card = btn.closest('.tag-card');
+    const wave = card.querySelector('.sound-wave');
+    if(wave) {
+      if(wave.style.display === 'flex') {
+        wave.style.display = 'none';
+        btn.innerText = 'Find';
+        btn.style.background = 'rgba(255,255,255,0.1)';
+      } else {
+        wave.style.display = 'flex';
+        btn.innerText = 'Stop';
+        btn.style.background = 'rgba(0,212,170,0.2)';
+      }
+    }
+  }
+
+  // Status Radios Selection
+  document.querySelectorAll('.radio-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.radio-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+</script>
+
+<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

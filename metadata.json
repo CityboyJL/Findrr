@@ -1,0 +1,6 @@
+{
+  "name": "Findrr",
+  "description": "A demo app for GPS navigation and location tracking with custom CSS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
