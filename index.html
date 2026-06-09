@@ -131,6 +131,10 @@
     @keyframes float { 0% { transform: translate(-50%, -50%) translateY(0px); } 50% { transform: translate(-50%, -50%) translateY(-5px); } 100% { transform: translate(-50%, -50%) translateY(0px); } }
     @keyframes dropIn { from { transform: translate(-50%, -80px); opacity: 0; } to { transform: translate(-50%, -50%); opacity: 1; } }
     
+    .pin.out-of-zone { border-color: var(--red); z-index: 25; }
+    .pin.out-of-zone .pin-pulse { border: 2px solid var(--red) !important; animation: pulseAlert 1s infinite !important; display: block !important; }
+    @keyframes pulseAlert { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(3.5); opacity: 0; } }
+    
     .pin.peter { background: var(--success); top: 50%; left: 40%; animation: dropIn 0.5s ease backwards; }
     .pin.peter .pin-pulse { border: 2px solid var(--success); animation: pulse 2.5s infinite; }
     .pin.alex { background: var(--amber); top: 30%; left: 70%; animation: dropIn 0.5s ease 0.1s backwards, float 3s infinite ease-in-out; }
@@ -139,7 +143,7 @@
     .pin.chloe .pin-pulse { border: 2px solid #ff6b81; animation: pulse 2.5s infinite; }
     .pin.mom { background: #9b59b6; top: 85%; left: 20%; animation: dropIn 0.5s ease 0.3s backwards; color: #fff; }
     .pin.mom .pin-pulse { border: 2px solid #9b59b6; animation: pulse 2.5s infinite; }
-    .pin.james { background: #3498db; top: 15%; left: 85%; animation: dropIn 0.5s ease 0.5s backwards; color: #fff; border-color: var(--teal); }
+    .pin.james { background: #3498db; top: 70%; left: 82%; animation: dropIn 0.5s ease 0.5s backwards; color: #fff; border-color: var(--teal); }
     .pin.james::after { content:''; position:absolute; bottom:-12px; font-size:10px; color:var(--teal); font-weight:bold; }
     
     .map-controls {
@@ -261,7 +265,7 @@
     <div class="map-container">
       <div class="search-bar">
         <svg fill="currentColor" viewBox="0 0 24 24" width="16" height="16"><path d="M10 2a8 8 0 015.293 13.707l5 5a1 1 0 01-1.414 1.414l-5-5A8 8 0 1110 2zm0 2a6 6 0 100 12A6 6 0 0010 4z"/></svg>
-        Search for a person, place, or thing...
+        <input type="text" id="searchInput" placeholder="Search for a person, place, or thing..." style="background:transparent;border:none;color:var(--white);width:100%;outline:none;font-size:12px;">
       </div>
       
       <div class="map-scroll-area" id="mapScrollArea">
@@ -289,6 +293,7 @@
           <div class="map-feature cafe" style="top: 25%; left: 18%;">☕ Cafe</div>
           <div class="map-feature cafe" style="top: 27%; left: 68%;">📚 Library</div>
           <div class="map-feature" style="top: 45%; left: 36%; font-size: 24px;">🏡</div>
+          <div class="map-feature store" style="top: 73%; left: 83%;">🏫 School</div>
 
           <!-- Route line connecting center to a pin -->
           <div class="route-line" id="routeLine" style="transform-origin: left center;"></div>
@@ -301,10 +306,10 @@
             GF<div class="pin-pulse" style="border-color: #ff6b81;"></div>
           </div>
           <div class="pin alex" onclick="showPopup('Alex', '#f5a623', 'Library, Floor 2', '15 min ago', 'alex')">
-            A
+            A<div class="pin-pulse" style="border-color: #f5a623; display: none;"></div>
           </div>
           <div class="pin hassan" onclick="showPopup('Hassan', '#e05252', 'Last seen 2h ago', '2h ago', 'hassan')">
-            H
+            H<div class="pin-pulse" style="border-color: #e05252; display: none;"></div>
           </div>
           <div class="pin mom" onclick="showPopup('Mom', '#9b59b6', 'Fresh Market', 'Now', 'mom')">
             Mo<div class="pin-pulse" style="border-color: #9b59b6;"></div>
@@ -458,6 +463,7 @@
   ];
 
   const tags = [
+    { name: "Golden Compass", icon: "🧭", location: "School, Library", time: "5 min ago", status: "NEARBY", color: "var(--success)" },
     { name: "Backpack", icon: "🎒", location: "School, Room 214", time: "10 min ago", status: "NEARBY", color: "var(--success)" },
     { name: "Letters from GF", icon: "💌", location: "Home — Desk drawer", time: "3h ago", status: "AT HOME", color: "var(--success)" },
     { name: "Gift Package", icon: "🎁", location: "In transit — Delivery tmrw", time: "Active", status: "EN ROUTE", color: "var(--amber)", progress: true },
@@ -536,7 +542,7 @@
         ${progressHtml}
         <div class="sound-wave">
           <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
-          <span style="font-size:11px;font-weight:700;color:var(--teal)">🔊 Taggrr is beeping nearby!</span>
+          <span style="font-size:11px;font-weight:700;color:var(--teal)">🔊 ${t.name} is beeping nearby!</span>
         </div>
       </div>
     `;
@@ -659,6 +665,30 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    const searchInput = document.getElementById('searchInput');
+    if(searchInput) {
+      searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          const query = this.value.toLowerCase();
+          const contact = contacts.find(c => c.name.toLowerCase().includes(query) || c.location.toLowerCase().includes(query) || c.desc.toLowerCase().includes(query));
+          if (contact) {
+            switchTab('screen-map', document.querySelectorAll('.nav-item')[0]);
+            setTimeout(() => zoomTo(contact.id), 100);
+            this.value = '';
+            return;
+          }
+          
+          const tag = tags.find(t => t.name.toLowerCase().includes(query) || t.location.toLowerCase().includes(query));
+          if (tag) {
+            showToast(`Found ${tag.name} near ${tag.location}`);
+            this.value = '';
+            return;
+          }
+          showToast('No results found.');
+        }
+      });
+    }
+
     const scrollArea = document.getElementById('mapScrollArea');
     if(scrollArea) {
       // Center map initially (wait a tick for layout)
