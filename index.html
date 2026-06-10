@@ -534,7 +534,7 @@
       `;
       findAction = "showToast('Tracking details opened')";
     } else if (t.status === 'LOST') {
-      findAction = "showToast('⚠️ Signal lost. Last known location shown on map.'); setTimeout(()=>switchTab('screen-map', document.querySelectorAll('.nav-item')[0]), 1800)";
+      findAction = `showLostItemOnMap('${t.name}', '${t.icon}')`;
     }
 
     tagList.innerHTML += `
@@ -560,6 +560,70 @@
   });
 
   // Navigation Logic
+  function showLostItemOnMap(name, icon) {
+    switchTab('screen-map', document.querySelectorAll('.nav-item')[0]);
+    
+    const mapContent = document.getElementById('mapContent');
+    const scrollArea = document.getElementById('mapScrollArea');
+    
+    // Create temporary lost item pin
+    const tempPin = document.createElement('div');
+    tempPin.className = 'pin';
+    tempPin.style.animation = 'dropIn 0.5s ease backwards';
+    tempPin.style.background = 'var(--red)';
+    tempPin.style.color = '#fff';
+    tempPin.style.top = '45%';
+    tempPin.style.left = '55%';
+    tempPin.style.zIndex = '100';
+    tempPin.style.fontSize = '18px'; // bigger for emoji
+    tempPin.style.width = '32px';
+    tempPin.style.height = '32px';
+    tempPin.innerHTML = `${icon}<div class="pin-pulse" style="border-color: var(--red); display: block !important;"></div>`;
+    
+    mapContent.appendChild(tempPin);
+    
+    // Tooltip popup
+    const tooltip = document.createElement('div');
+    tooltip.style.position = 'absolute';
+    tooltip.style.top = '40%';
+    tooltip.style.left = '55%';
+    tooltip.style.transform = 'translate(-50%, -100%)';
+    tooltip.style.background = 'var(--bg-card)';
+    tooltip.style.padding = '8px 12px';
+    tooltip.style.borderRadius = '8px';
+    tooltip.style.border = '1px solid var(--red)';
+    tooltip.style.color = '#fff';
+    tooltip.style.fontSize = '12px';
+    tooltip.style.fontWeight = 'bold';
+    tooltip.style.zIndex = '110';
+    tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+    tooltip.innerText = `Last known: ${name}`;
+    mapContent.appendChild(tooltip);
+
+    // Scroll to it
+    const x = 800 * 0.55;
+    const y = 800 * 0.45;
+    scrollArea.scrollTo({
+      left: x - scrollArea.clientWidth / 2,
+      top: y - scrollArea.clientHeight / 2,
+      behavior: 'smooth'
+    });
+
+    showToast(`Showing last known location for ${name}`);
+
+    // Fade out after 4 seconds
+    setTimeout(() => {
+      tempPin.style.transition = 'opacity 1s ease';
+      tooltip.style.transition = 'opacity 1s ease';
+      tempPin.style.opacity = '0';
+      tooltip.style.opacity = '0';
+      setTimeout(() => {
+        tempPin.remove();
+        tooltip.remove();
+      }, 1000);
+    }, 4000);
+  }
+
   function switchTab(screenId, navEl) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
